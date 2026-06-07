@@ -283,7 +283,7 @@ function ResultRow({
         <Text style={rr.pub} numberOfLines={1}>
           {item.publisher}{year ? `  ·  ${year}` : ''}
         </Text>
-        {isbn ? <Text style={rr.isbn}>ISBN  {isbn}</Text> : null}
+        {isbn ? <Text style={rr.isbn} numberOfLines={1}>ISBN  {isbn}</Text> : null}
       </View>
       <View style={[rr.badge, added && rr.badgeDone]}>
         <Text style={[rr.badgeLabel, added && rr.badgeLabelDone]}>
@@ -300,7 +300,7 @@ const rr = StyleSheet.create({
     gap: Spacing.sm,
   },
   rootAdded: { opacity: 0.55 },
-  info: { flex: 1, gap: 2 },
+  info: { flex: 1, gap: 2, minWidth: 0 },
   title: {
     fontFamily: Typography.fontMono, fontSize: 11, fontWeight: '700',
     color: Colors.text, lineHeight: 16, letterSpacing: 0.3,
@@ -375,15 +375,23 @@ const mf = StyleSheet.create({
 // ── Result list panel ─────────────────────────────────────────────────────────
 
 function ResultPanel({
-  items, error, empty,
+  items, error, empty, loading,
   isAdded, onAdd,
 }: {
   items: AladinItem[];
   error: string;
   empty: boolean;
+  loading: boolean;
   isAdded: (isbn: string) => boolean;
   onAdd: (item: AladinItem) => void;
 }) {
+  if (loading) {
+    return (
+      <View style={rp.errorStrip}>
+        <Text style={rp.errorText}>SEARCHING...</Text>
+      </View>
+    );
+  }
   if (error) {
     return (
       <View style={rp.errorStrip}>
@@ -517,6 +525,21 @@ export function BookSearchScreen() {
     [books]
   );
 
+  const isDuplicateBook = useCallback(
+    (title: string, author: string, isbn?: string) => {
+      const cleanIsbn = isbn?.replace(/[^0-9Xx]/g, '');
+      const cleanTitle = title.trim().toLowerCase();
+      const cleanAuthor = author.trim().toLowerCase();
+
+      return books.some((b) => {
+        if (cleanIsbn && b.isbn?.replace(/[^0-9Xx]/g, '') === cleanIsbn) return true;
+        return b.title.trim().toLowerCase() === cleanTitle
+          && b.author.trim().toLowerCase() === cleanAuthor;
+      });
+    },
+    [books]
+  );
+
   const showSaved = useCallback((title: string) => {
     setSavedTitle(title);
     setBannerKey((k) => k + 1);
@@ -525,22 +548,27 @@ export function BookSearchScreen() {
   const addFromAladin = useCallback(
     (item: AladinItem) => {
       const isbn = item.isbn13 || item.isbn || undefined;
-      if (isbn && isAdded(isbn)) {
+      const author = cleanAuthor(item.author);
+      if (isDuplicateBook(item.title, author, isbn)) {
         Alert.alert('이미 추가됨', '이 책은 이미 Archive에 있습니다.');
         return;
       }
-      addBook({
-        title: item.title,
-        author: cleanAuthor(item.author),
-        isbn,
-        publisher: item.publisher || undefined,
-        year: pubYear(item.pubDate) || undefined,
-        coverUrl: item.cover || undefined,
-        totalPages: item.subInfo?.itemPage ?? undefined,
-      });
-      showSaved(item.title);
+      try {
+        addBook({
+          title: item.title,
+          author,
+          isbn,
+          publisher: item.publisher || undefined,
+          year: pubYear(item.pubDate) || undefined,
+          coverUrl: item.cover || undefined,
+          totalPages: item.subInfo?.itemPage ?? undefined,
+        });
+        showSaved(item.title);
+      } catch {
+        Alert.alert('오류', '책을 추가하지 못했습니다. 다시 시도하세요.');
+      }
     },
-    [addBook, isAdded, showSaved]
+    [addBook, isDuplicateBook, showSaved]
   );
 
   const handleManualAdd = useCallback(() => {
@@ -548,17 +576,28 @@ export function BookSearchScreen() {
       Alert.alert('오류', '제목을 입력하세요.');
       return;
     }
-    addBook({
-      title: mTitle.trim(),
-      author: mAuthor.trim() || '—',
-      isbn: mISBN.trim() || undefined,
-      publisher: mPublisher.trim() || undefined,
-      year: mYear.trim() || undefined,
-      coverUrl: undefined,
-    });
-    showSaved(mTitle.trim());
-    setMTitle(''); setMAuthor(''); setMISBN(''); setMPublisher(''); setMYear('');
-  }, [addBook, mTitle, mAuthor, mISBN, mPublisher, mYear, showSaved]);
+    const title = mTitle.trim();
+    const author = mAuthor.trim() || '—';
+    const isbn = mISBN.trim() || undefined;
+    if (isDuplicateBook(title, author, isbn)) {
+      Alert.alert('이미 추가됨', '이 책은 이미 Archive에 있습니다.');
+      return;
+    }
+    try {
+      addBook({
+        title,
+        author,
+        isbn,
+        publisher: mPublisher.trim() || undefined,
+        year: mYear.trim() || undefined,
+        coverUrl: undefined,
+      });
+      showSaved(title);
+      setMTitle(''); setMAuthor(''); setMISBN(''); setMPublisher(''); setMYear('');
+    } catch {
+      Alert.alert('오류', '책을 추가하지 못했습니다. 다시 시도하세요.');
+    }
+  }, [addBook, mTitle, mAuthor, mISBN, mPublisher, mYear, showSaved, isDuplicateBook]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -585,10 +624,10 @@ export function BookSearchScreen() {
           <View style={styles.isbnCard}>
             <CoverThumb uri={isbnResult.cover} />
             <View style={styles.isbnInfo}>
-              <Text style={styles.isbnTitle}>{isbnResult.title}</Text>
-              <Text style={styles.isbnAuthor}>{cleanAuthor(isbnResult.author)}</Text>
-              <Text style={styles.isbnPub}>{isbnResult.publisher}</Text>
-              <Text style={styles.isbnCode}>
+              <Text style={styles.isbnTitle} numberOfLines={2}>{isbnResult.title}</Text>
+              <Text style={styles.isbnAuthor} numberOfLines={1}>{cleanAuthor(isbnResult.author)}</Text>
+              <Text style={styles.isbnPub} numberOfLines={1}>{isbnResult.publisher}</Text>
+              <Text style={styles.isbnCode} numberOfLines={1}>
                 ISBN  {isbnResult.isbn13 || isbnResult.isbn}
               </Text>
             </View>
@@ -611,13 +650,20 @@ export function BookSearchScreen() {
           items={results}
           error={error}
           empty={empty}
+          loading={loading}
           isAdded={(isbn) => isAdded(isbn)}
           onAdd={addFromAladin}
         />
       )}
 
       {/* ISBN error/empty */}
-      {mode === 'ISBN' && (error || empty) && (
+      {mode === 'ISBN' && loading && (
+        <View style={rp.errorStrip}>
+          <Text style={rp.errorText}>SEARCHING...</Text>
+        </View>
+      )}
+
+      {mode === 'ISBN' && !loading && (error || empty) && (
         <View style={rp.errorStrip}>
           <Text style={rp.errorText}>
             {error || 'ISBN NOT FOUND IN DATABASE'}
@@ -662,7 +708,7 @@ export function BookSearchScreen() {
         ))}
       </View>
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* Saved banner — overlays scroll content */}
         {savedTitle ? <SavedBanner key={bannerKey} title={savedTitle} /> : null}
 
@@ -730,7 +776,7 @@ const styles = StyleSheet.create({
     borderRadius: 2, padding: Spacing.md,
     backgroundColor: Colors.lcdBackground,
   },
-  isbnInfo: { flex: 1, gap: 3 },
+  isbnInfo: { flex: 1, gap: 3, minWidth: 0 },
   isbnTitle: {
     fontFamily: Typography.fontMono, fontSize: 14, fontWeight: '700',
     color: Colors.lcdText, lineHeight: 20, letterSpacing: 0.3,

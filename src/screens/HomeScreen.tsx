@@ -14,6 +14,7 @@ import { RootStackParamList } from '../navigation/RootNavigator';
 import { useSessions } from '../store/sessionStore';
 import { useBooks } from '../store/bookStore';
 import { computeStreak, fmtHM } from '../utils/statsCalculator';
+import { sessionPageLabel } from '../utils/sessionMetrics';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -265,8 +266,9 @@ const PROG_SEGS = 24;
 
 export function HomeScreen() {
   const navigation = useNavigation<HomeNav>();
-  const { sessions, stats } = useSessions();
-  const { books } = useBooks();
+  const { sessions, stats, loaded: sessionsLoaded } = useSessions();
+  const { books, loaded: booksLoaded } = useBooks();
+  const loaded = sessionsLoaded && booksLoaded;
 
   // Current book: ING 상태 책 중 가장 최근에 업데이트된 것
   const { currentBook, currentPage, lastLogDate, progressPct, bookId } =
@@ -329,9 +331,9 @@ export function HomeScreen() {
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>B404K</Text>
         <View style={styles.ledGroup}>
-          <LedIndicator label="READY" on={books.length > 0} activeColor={Colors.accentGreen} />
-          <LedIndicator label="REC"   on={stats.todaySessions > 0} activeColor={Colors.statusError} />
-          <LedIndicator label="SYNC"  on={sessions.length > 0} activeColor={Colors.statusWarning} />
+          <LedIndicator label="READY" on={loaded && books.length > 0} activeColor={Colors.accentGreen} />
+          <LedIndicator label="REC"   on={loaded && stats.todaySessions > 0} activeColor={Colors.statusError} />
+          <LedIndicator label="SYNC"  on={loaded && sessions.length > 0} activeColor={Colors.statusWarning} />
         </View>
       </View>
 
@@ -362,7 +364,7 @@ export function HomeScreen() {
             <View style={styles.lcdInfoRow}>
               <Text style={styles.lcdKey}>TITLE</Text>
               <Text style={styles.lcdVal} numberOfLines={1}>
-                {currentBook?.title ?? '—'}
+                {!loaded ? 'LOADING...' : currentBook?.title ?? 'NO ACTIVE BOOK'}
               </Text>
             </View>
 
@@ -370,7 +372,7 @@ export function HomeScreen() {
             <View style={styles.lcdInfoRow}>
               <Text style={styles.lcdKey}>AUTHOR</Text>
               <Text style={styles.lcdVal} numberOfLines={1}>
-                {currentBook?.author ?? '—'}
+                {!loaded ? 'LOADING...' : currentBook?.author ?? 'SET A BOOK TO ING'}
               </Text>
             </View>
 
@@ -388,7 +390,7 @@ export function HomeScreen() {
                 ))}
               </View>
               <Text style={styles.lcdPct}>
-                {progressPct != null ? `${progressPct}%` : '—'}
+                {!loaded ? '...' : progressPct != null ? `${progressPct}%` : '—'}
               </Text>
             </View>
 
@@ -396,7 +398,7 @@ export function HomeScreen() {
             <View style={styles.lcdFootRow}>
               <Text style={styles.lcdFootKey}>PAGE</Text>
               <Text style={styles.lcdFootVal}>
-                {currentPage > 0 ? `p.${currentPage}` : '—'}
+                {!loaded ? '—' : currentPage > 0 ? `p.${currentPage}` : '—'}
               </Text>
               <Text style={styles.lcdFootSep}>·</Text>
               <Text style={styles.lcdFootKey}>STREAK</Text>
@@ -443,7 +445,7 @@ export function HomeScreen() {
           {/* Function row: MONITOR — ARCHIVE */}
           <View style={styles.fnRow}>
             <FnBtn label="MONITOR" icon="◈" onPress={() => navigation.navigate('Stats')} />
-            <FnBtn label="ARCHIVE" icon="□" onPress={() => navigation.navigate('MainTabs')} />
+            <FnBtn label="ARCHIVE" icon="□" onPress={() => navigation.navigate('MainTabs', { screen: 'Archive' })} />
           </View>
 
         </View>
@@ -451,7 +453,11 @@ export function HomeScreen() {
         {/* ── RECENT LOG ── */}
         <SectionHeader label="RECENT LOG" />
         <View style={styles.logPanel}>
-          {recentSessions.length === 0 ? (
+          {!loaded ? (
+            <View style={styles.logEmpty}>
+              <Text style={styles.logEmptyText}>LOADING...</Text>
+            </View>
+          ) : recentSessions.length === 0 ? (
             <View style={styles.logEmpty}>
               <Text style={styles.logEmptyText}>NO LOG ENTRIES</Text>
             </View>
@@ -462,7 +468,7 @@ export function HomeScreen() {
                   <Text style={styles.logTime}>{fmtSessionTime(s.date, s.savedAt)}</Text>
                   <View style={styles.logDot} />
                   <Text style={styles.logEvent} numberOfLines={1}>{s.bookTitle}</Text>
-                  <Text style={styles.logPage}>p.{s.endPage}</Text>
+                  <Text style={styles.logPage}>{sessionPageLabel(s)}</Text>
                 </View>
                 {i < recentSessions.length - 1 && <View style={styles.logSep} />}
               </React.Fragment>
@@ -702,6 +708,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     color: Colors.text,
     flex: 1,
+    minWidth: 0,
   },
   logPage: {
     fontFamily: Typography.fontMono,

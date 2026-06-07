@@ -6,6 +6,7 @@ import { Colors, Typography, Spacing, Border } from '../constants/theme';
 import { useSessions } from '../store/sessionStore';
 import { useBooks } from '../store/bookStore';
 import { computeStreak } from '../utils/statsCalculator';
+import { sessionPages } from '../utils/sessionMetrics';
 import { ReadingSession } from '../types/session';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ function last7Days(sessions: ReadingSession[]) {
     const d = new Date(Date.now() - offset * 86400000);
     const pages = sessions
       .filter((s) => s.date === ds)
-      .reduce((sum, s) => sum + Math.max(0, s.endPage - s.startPage), 0);
+      .reduce((sum, s) => sum + sessionPages(s), 0);
     const isToday = offset === 0;
     return { label: days[d.getDay()], pages, isToday };
   });
@@ -53,7 +54,7 @@ function mostByPages(sessions: ReadingSession[], key: keyof ReadingSession) {
   for (const s of sessions) {
     const k = String(s[key]);
     if (!k) continue;
-    map[k] = (map[k] ?? 0) + Math.max(0, s.endPage - s.startPage);
+    map[k] = (map[k] ?? 0) + sessionPages(s);
   }
   const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
   return sorted[0]?.[0] ?? '—';
@@ -217,6 +218,7 @@ const ar = StyleSheet.create({
     color: Colors.text,
     minWidth: 52,
     textAlign: 'right',
+    flexShrink: 1,
   },
 });
 
@@ -249,8 +251,9 @@ const EFF_REF    = 100;   // pages/hour reference max
 const GAUGE_SEGS = 12;
 
 export function MonitorScreen() {
-  const { sessions, stats } = useSessions();
-  const { books } = useBooks();
+  const { sessions, stats, loaded: sessionsLoaded } = useSessions();
+  const { books, loaded: booksLoaded } = useBooks();
+  const loaded = sessionsLoaded && booksLoaded;
 
   const preCount  = useMemo(() => books.filter((b) => b.status === 'PRE').length,  [books]);
   const ingCount  = useMemo(() => books.filter((b) => b.status === 'ING').length,  [books]);
@@ -289,9 +292,9 @@ export function MonitorScreen() {
         <Text style={styles.topBarTitle}>MONITOR</Text>
         <View style={styles.topBarLeds}>
           {[
-            { label: 'SIG',  on: sessions.length > 0,        color: Colors.accentGreen },
-            { label: 'REC',  on: stats.todaySessions > 0,    color: Colors.statusError },
-            { label: 'PEAK', on: effPph > 60,                color: Colors.statusWarning },
+            { label: 'SIG',  on: loaded && sessions.length > 0,        color: Colors.accentGreen },
+            { label: 'REC',  on: loaded && stats.todaySessions > 0,    color: Colors.statusError },
+            { label: 'PEAK', on: loaded && effPph > 60,                color: Colors.statusWarning },
           ].map(({ label, on, color }) => (
             <View key={label} style={styles.topLedWrap}>
               <View style={[styles.topLed, { backgroundColor: on ? color : Colors.metalDark }]} />
@@ -314,16 +317,21 @@ export function MonitorScreen() {
             <Text style={styles.lcdCap}>THIS WEEK</Text>
             <Text style={styles.lcdCap}>{fmtTimeClock(stats.weekTimeMin)}</Text>
           </View>
-          <Text style={styles.lcdBig}>{stats.weekPages > 0 ? stats.weekPages : '—'}</Text>
+          <Text style={styles.lcdBig}>{!loaded ? '...' : stats.weekPages > 0 ? stats.weekPages : '—'}</Text>
           <Text style={styles.lcdUnit}>PAGES</Text>
           <View style={{ marginTop: Spacing.sm }}>
             <SegGauge filled={weekBarFill} total={20} height={10} warn />
           </View>
           <View style={styles.primaryFootRow}>
-            <Text style={styles.lcdSub}>SESSIONS  {stats.totalSessions}</Text>
-            <Text style={styles.lcdSub}>BOOKS  {stats.uniqueBookCount}</Text>
+            <Text style={styles.lcdSub}>SESSIONS  {loaded ? stats.totalSessions : '--'}</Text>
+            <Text style={styles.lcdSub}>BOOKS  {loaded ? stats.uniqueBookCount : '--'}</Text>
           </View>
         </LcdPanel>
+        {loaded && sessions.length === 0 && (
+          <LcdPanel padding={Spacing.md}>
+            <Text style={styles.lcdSub}>NO SESSION DATA</Text>
+          </LcdPanel>
+        )}
 
         {/* ── CH-B · CHANNEL METERS ── */}
         <SectionHeader label="CH-B  CHANNEL" />

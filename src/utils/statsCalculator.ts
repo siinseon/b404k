@@ -1,4 +1,5 @@
 import { ReadingSession } from '../types/session';
+import { sessionPages } from './sessionMetrics';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export function computeWeeklyTrend(
 
     buckets.push({
       label,
-      pages: inWeek.reduce((sum, s) => sum + Math.max(0, s.endPage - s.startPage), 0),
+      pages: inWeek.reduce((sum, s) => sum + sessionPages(s), 0),
       timeMin: inWeek.reduce((sum, s) => sum + s.readingTimeMin, 0),
       sessionCount: inWeek.length,
     });
@@ -116,7 +117,7 @@ export function computeCalendarMonth(
   // Pages by date
   const pagesByDate = new Map<string, number>();
   for (const s of sessions) {
-    const pages = Math.max(0, s.endPage - s.startPage);
+    const pages = sessionPages(s);
     pagesByDate.set(s.date, (pagesByDate.get(s.date) ?? 0) + pages);
   }
 
@@ -166,7 +167,7 @@ export function computeBookBreakdown(sessions: ReadingSession[]): BookBreakdown[
   const map = new Map<string, BookBreakdown>();
 
   for (const s of sessions) {
-    const pages = Math.max(0, s.endPage - s.startPage);
+    const pages = sessionPages(s);
     const existing = map.get(s.bookId);
     if (existing) {
       existing.totalPages += pages;
@@ -217,7 +218,7 @@ export interface ReadingStatistics {
 export function computeReadingStatistics(sessions: ReadingSession[]): ReadingStatistics {
   const now = new Date();
   const totalSessions = sessions.length;
-  const totalPages = sessions.reduce((sum, s) => sum + Math.max(0, s.endPage - s.startPage), 0);
+  const totalPages = sessions.reduce((sum, s) => sum + sessionPages(s), 0);
   const totalTimeMin = sessions.reduce((sum, s) => sum + s.readingTimeMin, 0);
 
   const uniqueDates = new Set(sessions.map((s) => s.date));

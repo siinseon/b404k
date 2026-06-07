@@ -92,7 +92,11 @@ export function BookProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
-        const parsed: Partial<Book>[] = raw ? JSON.parse(raw) : [];
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(parsed)) {
+          dispatch({ type: 'LOAD', books: [] });
+          return;
+        }
         dispatch({ type: 'LOAD', books: parsed.map(normalize) });
       })
       .catch(() => dispatch({ type: 'LOAD', books: [] }));

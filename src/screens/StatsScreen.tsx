@@ -478,7 +478,7 @@ function StatsTable({
           <View style={st.row}>
             <Text style={st.key}>{key}</Text>
             <View style={st.dots} />
-            <Text style={st.val}>{val}</Text>
+            <Text style={st.val} numberOfLines={1}>{val}</Text>
           </View>
         </React.Fragment>
       ))}
@@ -510,6 +510,7 @@ const st = StyleSheet.create({
   },
   val: {
     fontFamily: Typography.fontMono, fontSize: 11, fontWeight: '700', color: Colors.text,
+    flexShrink: 1,
   },
   sep: { height: Border.thin, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
 });
@@ -518,7 +519,7 @@ const st = StyleSheet.create({
 
 export function StatsScreen() {
   const navigation = useNavigation<Nav>();
-  const { sessions } = useSessions();
+  const { sessions, loaded } = useSessions();
 
   const stats = useMemo(() => computeReadingStatistics(sessions), [sessions]);
 
@@ -547,6 +548,16 @@ export function StatsScreen() {
 
         {/* ── Headline 4-grid ── */}
         <SectionHeader label="OVERVIEW" />
+        {!loaded && (
+          <View style={styles.emptyPanel}>
+            <Text style={styles.emptyText}>LOADING...</Text>
+          </View>
+        )}
+        {loaded && sessions.length === 0 && (
+          <View style={styles.emptyPanel}>
+            <Text style={styles.emptyText}>NO SESSION DATA</Text>
+          </View>
+        )}
         <View style={styles.cardRow}>
           <StatCard
             label="TOTAL BOOKS"
@@ -587,15 +598,15 @@ export function StatsScreen() {
 
         {/* ── Weekly trend chart ── */}
         <SectionHeader label="WEEKLY TREND" />
-        <WeeklyChart data={stats.weeklyTrend} />
+        {loaded ? <WeeklyChart data={stats.weeklyTrend} /> : null}
 
         {/* ── Calendar heatmap ── */}
         <SectionHeader label="MONTHLY CALENDAR" />
-        <CalendarHeatmap data={stats.currentMonth} />
+        {loaded ? <CalendarHeatmap data={stats.currentMonth} /> : null}
 
         {/* ── Book breakdown ── */}
         <SectionHeader label="BY BOOK" />
-        <BookChart data={stats.bookBreakdown} />
+        {loaded ? <BookChart data={stats.bookBreakdown} /> : null}
 
         <View style={styles.bottomPad} />
       </ScrollView>
@@ -641,4 +652,18 @@ const styles = StyleSheet.create({
   bottomPad: { height: Spacing.xl },
 
   cardRow: { flexDirection: 'row', gap: Spacing.sm },
+  emptyPanel: {
+    borderWidth: Border.regular,
+    ...Shadows.inset,
+    borderRadius: 2,
+    backgroundColor: Colors.panel,
+    padding: Spacing.lg,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontFamily: Typography.fontMono,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: Colors.textDisabled,
+  },
 });
