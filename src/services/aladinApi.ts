@@ -3,6 +3,7 @@ import { ALADIN_TTB_KEY } from '../config';
 
 const SEARCH_URL = 'https://www.aladin.co.kr/ttb/api/ItemSearch.aspx';
 const LOOKUP_URL = 'https://www.aladin.co.kr/ttb/api/ItemLookUp.aspx';
+const REQUEST_TIMEOUT_MS = 10000;
 
 /**
  * 웹 환경에서는 CORS 정책으로 알라딘 API 직접 호출이 차단됩니다.
@@ -35,7 +36,7 @@ export interface AladinItem {
 
 interface AladinSearchResponse {
   totalResults: number;
-  item: AladinItem[];
+  item?: AladinItem[] | AladinItem;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -73,21 +74,37 @@ function toQueryString(params: Record<string, string>): string {
 }
 
 function checkKey() {
-  if (!ALADIN_TTB_KEY || ALADIN_TTB_KEY === 'YOUR_TTB_KEY_HERE') {
+  const key: string = ALADIN_TTB_KEY;
+  if (!key || key === 'YOUR_TTB_KEY_HERE') {
     throw new Error('API_KEY_NOT_SET');
   }
+}
+
+function normalizeItems(item: AladinSearchResponse['item']): AladinItem[] {
+  if (!item) return [];
+  return Array.isArray(item) ? item : [item];
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────
 
 async function aladinFetch(url: string): Promise<AladinSearchResponse> {
-  const res = await fetch(withProxy(url));
-  if (!res.ok) throw new Error('NETWORK_ERROR');
-  const text = await res.text();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   try {
-    return JSON.parse(text) as AladinSearchResponse;
-  } catch {
-    throw new Error('PARSE_ERROR');
+    const res = await fetch(withProxy(url), { signal: controller.signal });
+    if (!res.ok) throw new Error('NETWORK_ERROR');
+    const text = await res.text();
+    try {
+      return JSON.parse(text) as AladinSearchResponse;
+    } catch {
+      throw new Error('PARSE_ERROR');
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message === 'PARSE_ERROR') throw e;
+    throw new Error('NETWORK_ERROR');
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -95,14 +112,14 @@ export async function searchByTitle(query: string): Promise<AladinItem[]> {
   checkKey();
   const qs = toQueryString({ ...baseParams(), Query: query, QueryType: 'Title' });
   const data = await aladinFetch(`${SEARCH_URL}?${qs}`);
-  return data.item ?? [];
+  return normalizeItems(data.item);
 }
 
 export async function searchByAuthor(query: string): Promise<AladinItem[]> {
   checkKey();
   const qs = toQueryString({ ...baseParams(), Query: query, QueryType: 'Author' });
   const data = await aladinFetch(`${SEARCH_URL}?${qs}`);
-  return data.item ?? [];
+  return normalizeItems(data.item);
 }
 
 export async function searchByISBN(isbn: string): Promise<AladinItem | null> {
@@ -118,5 +135,5 @@ export async function searchByISBN(isbn: string): Promise<AladinItem | null> {
     Cover: 'Big',
   });
   const data = await aladinFetch(`${LOOKUP_URL}?${qs}`);
-  return data.item?.[0] ?? null;
+  return normalizeItems(data.item)[0] ?? null;
 }

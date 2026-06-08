@@ -6,9 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Colors, Typography, Spacing, Border } from '../constants/theme';
 import { useBooks } from '../store/bookStore';
 import {
@@ -25,7 +26,8 @@ type Phase =
   | { tag: 'reading' }
   | { tag: 'preview'; result: ParseResult; unique: ImportRow[]; dupCount: number }
   | { tag: 'importing'; done: number; total: number }
-  | { tag: 'complete'; imported: number; duplicates: number; errors: number };
+  | { tag: 'complete'; imported: number; duplicates: number; errors: number }
+  | { tag: 'error'; message: string };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -37,8 +39,9 @@ function StatusLeds({ phase }: { phase: Phase['tag'] }) {
     { id: 'preview',   label: 'PREVIEW' },
     { id: 'importing', label: 'IMPORTING' },
     { id: 'complete',  label: 'COMPLETE' },
+    { id: 'error',     label: 'ERROR' },
   ];
-  const ORDER: Phase['tag'][] = ['ready', 'reading', 'preview', 'importing', 'complete'];
+  const ORDER: Phase['tag'][] = ['ready', 'reading', 'preview', 'importing', 'complete', 'error'];
   const currentIdx = ORDER.indexOf(phase);
 
   return (
@@ -118,7 +121,7 @@ function DataRow({ label, value, highlight = false }: { label: string; value: st
     <View style={dr.row}>
       <Text style={dr.key}>{label}</Text>
       <View style={dr.dots} />
-      <Text style={[dr.val, highlight && dr.valHi]}>{value}</Text>
+      <Text style={[dr.val, highlight && dr.valHi]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -150,6 +153,7 @@ const dr = StyleSheet.create({
     color: Colors.lcdText,
     minWidth: 60,
     textAlign: 'right',
+    flexShrink: 1,
   },
   valHi: { color: Colors.accentGreenDim },
 });
@@ -274,8 +278,8 @@ export function ImportScreen() {
       }
       const { unique, duplicateCount } = filterDuplicates(result.rows, books);
       setPhase({ tag: 'preview', result, unique, dupCount: duplicateCount });
-    } catch (err) {
-      setPhase({ tag: 'ready' });
+    } catch {
+      setPhase({ tag: 'error', message: 'FILE READ ERROR' });
     }
   }, [books]);
 
@@ -295,16 +299,21 @@ export function ImportScreen() {
 
     setPhase({ tag: 'importing', done: 0, total: unique.length });
 
-    // Batch import (single state update for performance)
-    importBooks(
-      unique.map((r) => ({
-        title: r.title,
-        author: r.author,
-        publisher: r.publisher,
-        isbn: r.isbn,
-        totalPages: r.totalPages,
-      })),
-    );
+    try {
+      // Batch import (single state update for performance)
+      importBooks(
+        unique.map((r) => ({
+          title: r.title,
+          author: r.author,
+          publisher: r.publisher,
+          isbn: r.isbn,
+          totalPages: r.totalPages,
+        })),
+      );
+    } catch {
+      setPhase({ tag: 'error', message: 'IMPORT FAILED' });
+      return;
+    }
 
     setPhase({
       tag: 'complete',
@@ -317,6 +326,21 @@ export function ImportScreen() {
   const handleReset = useCallback(() => {
     setPhase({ tag: 'ready' });
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (phase.tag === 'preview' || phase.tag === 'complete' || phase.tag === 'error') {
+          setPhase({ tag: 'ready' });
+          return true;
+        }
+        if (phase.tag === 'reading' || phase.tag === 'importing') return true;
+        return false;
+      });
+
+      return () => sub.remove();
+    }, [phase.tag])
+  );
 
   const currentTag = phase.tag;
 
@@ -512,6 +536,27 @@ export function ImportScreen() {
                 />
               </View>
             </View>
+          </>
+        )}
+
+        {/* ── ERROR ── */}
+        {phase.tag === 'error' && (
+          <>
+            <LcdFrame>
+              <View style={{ paddingVertical: Spacing.sm }}>
+                <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm }}>
+                  <Text style={styles.lcdCap}>IMPORT ERROR</Text>
+                </View>
+                <LcdSep />
+                <DataRow label="STATUS" value={phase.message} />
+              </View>
+            </LcdFrame>
+
+            <ActionBtn
+              label="TRY AGAIN  ▶"
+              accent
+              onPress={handleReset}
+            />
           </>
         )}
 

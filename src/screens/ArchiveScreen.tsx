@@ -150,7 +150,7 @@ const brow = StyleSheet.create({
     fontSize: 14,
     color: Colors.textDisabled,
   },
-  center: { flex: 1, gap: 2 },
+  center: { flex: 1, gap: 2, minWidth: 0 },
   publisher: {
     fontFamily: Typography.fontMono,
     fontSize: 9,
@@ -271,6 +271,22 @@ export function ArchiveScreen() {
   const navigation = useNavigation<ArchiveNav>();
   const { books, removeBook, updateBookStatus, loaded } = useBooks();
 
+  const handleRemoveBook = (book: Book) => {
+    try {
+      removeBook(book.id);
+    } catch {
+      Alert.alert('오류', '책을 삭제하지 못했습니다. 다시 시도하세요.');
+    }
+  };
+
+  const handleStatusChange = (book: Book, status: BookStatus) => {
+    try {
+      updateBookStatus(book.id, status);
+    } catch {
+      Alert.alert('오류', '상태를 변경하지 못했습니다. 다시 시도하세요.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       {/* Top bar */}
@@ -374,9 +390,9 @@ export function ArchiveScreen() {
                       {i > 0 && <View style={styles.listDivider} />}
                       <BookRow
                         book={book}
-                        onRemove={() => removeBook(book.id)}
+                        onRemove={() => handleRemoveBook(book)}
                         onLog={() => navigation.navigate('Session', { bookId: book.id })}
-                        onStatusChange={(s) => updateBookStatus(book.id, s)}
+                        onStatusChange={(s) => handleStatusChange(book, s)}
                       />
                     </React.Fragment>
                   ))}

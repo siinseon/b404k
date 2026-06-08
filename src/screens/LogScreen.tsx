@@ -5,6 +5,7 @@ import { LcdPanel } from '../components/LcdPanel';
 import { Colors, Typography, Spacing, Border, Shadows } from '../constants/theme';
 import { useSessions } from '../store/sessionStore';
 import { ReadingSession } from '../types/session';
+import { sessionPageLabel, sessionPages } from '../utils/sessionMetrics';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,8 @@ function SessionRow({
   session: ReadingSession;
   onRemove: () => void;
 }) {
-  const pages = Math.max(0, session.endPage - session.startPage);
+  const pages = sessionPages(session);
+  const pageLabel = sessionPageLabel(session);
 
   const handleRemove = () => {
     Alert.alert('DELETE LOG', '이 세션 로그를 삭제합니까?', [
@@ -55,7 +57,7 @@ function SessionRow({
       <View style={sr.center}>
         <Text style={sr.title} numberOfLines={1}>{session.bookTitle}</Text>
         <View style={sr.metaRow}>
-          <Text style={sr.meta}>p.{session.startPage}→{session.endPage}</Text>
+          <Text style={sr.meta}>{pageLabel}</Text>
           <Text style={sr.metaDot}>·</Text>
           <Text style={sr.meta}>{pages} pp</Text>
           <Text style={sr.metaDot}>·</Text>
@@ -102,6 +104,7 @@ const sr = StyleSheet.create({
   center: {
     flex: 1,
     gap: 2,
+    minWidth: 0,
   },
   title: {
     fontFamily: Typography.fontMono,
@@ -157,7 +160,7 @@ const sr = StyleSheet.create({
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export function LogScreen() {
-  const { sessions, stats, removeSession } = useSessions();
+  const { sessions, stats, removeSession, loaded } = useSessions();
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
@@ -181,7 +184,7 @@ export function LogScreen() {
             </Text>
           </View>
           <Text style={styles.lcdSub}>
-            {sessions.length === 0 ? 'NO ENTRIES' : `TODAY: ${stats.todaySessions} SESSIONS`}
+            {!loaded ? 'LOADING...' : sessions.length === 0 ? 'NO ENTRIES' : `TODAY: ${stats.todaySessions} SESSIONS`}
           </Text>
         </LcdPanel>
 
@@ -219,7 +222,13 @@ export function LogScreen() {
           </View>
           <View style={styles.listDivider} />
 
-          {sessions.length === 0 && (
+          {!loaded && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>LOADING...</Text>
+            </View>
+          )}
+
+          {loaded && sessions.length === 0 && (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>≡</Text>
               <Text style={styles.emptyText}>NO SESSION LOGS</Text>
@@ -227,7 +236,7 @@ export function LogScreen() {
             </View>
           )}
 
-          {sessions.map((session, i) => (
+          {loaded && sessions.map((session, i) => (
             <React.Fragment key={session.id}>
               {i > 0 && <View style={styles.listDivider} />}
               <SessionRow session={session} onRemove={() => removeSession(session.id)} />

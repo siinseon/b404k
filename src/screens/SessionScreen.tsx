@@ -9,9 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Colors, Typography, Spacing, Border } from '../constants/theme';
 import { useBooks } from '../store/bookStore';
@@ -352,7 +353,7 @@ const bs = StyleSheet.create({
     paddingVertical: Spacing.xs,
   },
   navBtnIcon: { fontFamily: Typography.fontMono, fontSize: 10, color: Colors.text },
-  titleArea: { flex: 1, gap: 3 },
+  titleArea: { flex: 1, gap: 3, minWidth: 0 },
   title: {
     fontFamily: Typography.fontMono,
     fontSize: 13,
@@ -404,8 +405,9 @@ export function SessionScreen() {
   const route = useRoute<Route>();
   const bookId = route.params?.bookId;
 
-  const { books, updateBookStatus } = useBooks();
-  const { addSession } = useSessions();
+  const { books, updateBookStatus, loaded: booksLoaded } = useBooks();
+  const { addSession, loaded: sessionsLoaded } = useSessions();
+  const loaded = booksLoaded && sessionsLoaded;
 
   const [bookIndex, setBookIndex] = useState(0);
   const [bookInitialized, setBookInitialized] = useState(false);
@@ -437,6 +439,48 @@ export function SessionScreen() {
   const [timeM, setTimeM] = useState('');
   const [memo, setMemo] = useState('');
 
+  useEffect(() => {
+    if (books.length === 0 && bookIndex !== 0) {
+      setBookIndex(0);
+      return;
+    }
+    if (bookIndex >= books.length) {
+      setBookIndex(Math.max(books.length - 1, 0));
+    }
+  }, [bookIndex, books.length]);
+
+  const isDirty =
+    date !== todayISO()
+    || currentPage.trim().length > 0
+    || timeH.trim().length > 0
+    || timeM.trim().length > 0
+    || memo.trim().length > 0
+    || (selectedBook ? status !== selectedBook.status : false);
+
+  const requestBack = useCallback(() => {
+    if (!isDirty) {
+      navigation.goBack();
+      return;
+    }
+
+    Alert.alert('DISCARD LOG', '입력 중인 기록을 버리고 나가시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      { text: '나가기', style: 'destructive', onPress: () => navigation.goBack() },
+    ]);
+  }, [isDirty, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (!isDirty) return false;
+        requestBack();
+        return true;
+      });
+
+      return () => sub.remove();
+    }, [isDirty, requestBack])
+  );
+
   const handlePrev = useCallback(() => {
     setBookIndex((i) => (i > 0 ? i - 1 : books.length - 1));
   }, [books.length]);
@@ -458,20 +502,26 @@ export function SessionScreen() {
     const totalMin = (parseInt(timeH || '0', 10) * 60) + parseInt(timeM || '0', 10);
     const cp = currentPage.trim() ? parseInt(currentPage, 10) : undefined;
 
-    // Update book status
-    updateBookStatus(selectedBook.id, status);
+    try {
+      // Update book status
+      updateBookStatus(selectedBook.id, status);
 
-    // Save session record
-    addSession({
-      bookId: selectedBook.id,
-      bookTitle: selectedBook.title,
-      bookAuthor: selectedBook.author,
-      date,
-      bookStatus: status,
-      currentPage: cp && !isNaN(cp) ? cp : undefined,
-      readingTimeMin: totalMin,
-      memo: memo.trim() || undefined,
-    });
+      // Save session record
+      addSession({
+        bookId: selectedBook.id,
+        bookTitle: selectedBook.title,
+        bookAuthor: selectedBook.author,
+        date,
+        bookStatus: status,
+        currentPage: cp && !isNaN(cp) ? cp : undefined,
+        endPage: cp && !isNaN(cp) ? cp : undefined,
+        readingTimeMin: Number.isFinite(totalMin) ? totalMin : 0,
+        memo: memo.trim() || undefined,
+      });
+    } catch {
+      Alert.alert('오류', '기록을 저장하지 못했습니다. 다시 시도하세요.');
+      return;
+    }
 
     Alert.alert(
       'SAVED',
@@ -487,7 +537,7 @@ export function SessionScreen() {
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       {/* Top bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.75} style={styles.backBtn}>
+        <TouchableOpacity onPress={requestBack} activeOpacity={0.75} style={styles.backBtn}>
           <View style={styles.backBtnFace}>
             <Text style={styles.backBtnLabel}>◀ BACK</Text>
           </View>
@@ -501,7 +551,7 @@ export function SessionScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
           style={styles.scroll}
@@ -512,7 +562,11 @@ export function SessionScreen() {
 
           {/* ── BOOK ── */}
           <SectionLabel text="BOOK" />
-          {books.length === 0 ? (
+          {!loaded ? (
+            <View style={styles.noBookWarn}>
+              <Text style={styles.noBookText}>LOADING...</Text>
+            </View>
+          ) : books.length === 0 ? (
             <View style={styles.noBookWarn}>
               <Text style={styles.noBookText}>NO BOOKS IN ARCHIVE</Text>
               <Text style={styles.noBookHint}>ADD BOOKS VIA BOOK SEARCH</Text>

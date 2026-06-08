@@ -197,7 +197,12 @@ export async function pickAndParse(): Promise<ParseResult | null> {
     workbook = XLSX.read(content, { type: 'string' });
   }
 
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const firstSheetName = workbook.SheetNames[0];
+  if (!firstSheetName || !workbook.Sheets[firstSheetName]) {
+    throw new Error('EMPTY WORKBOOK');
+  }
+
+  const sheet = workbook.Sheets[firstSheetName];
   const rawRows = XLSX.utils.sheet_to_json(sheet, {
     defval: '',
     raw: false, // format everything as strings

@@ -8,6 +8,8 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ReadingSession, SessionStats } from '../types/session';
+import { BookStatus } from '../types/book';
+import { sessionPages } from '../utils/sessionMetrics';
 
 const STORAGE_KEY = '@b404k/sessions';
 
@@ -19,6 +21,37 @@ interface SessionState {
 }
 
 const initialState: SessionState = { sessions: [], loaded: false };
+
+// ── Normalize loaded data (migration safety) ──────────────────────────────────
+
+const VALID_STATUS: BookStatus[] = ['PRE', 'ING', 'DONE'];
+
+function normalizeNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function normalizeSession(raw: Partial<ReadingSession>): ReadingSession {
+  const savedAt = normalizeNumber(raw.savedAt) ?? Date.now();
+  const readingTimeMin = normalizeNumber(raw.readingTimeMin) ?? 0;
+  const bookStatus = VALID_STATUS.includes(raw.bookStatus as BookStatus)
+    ? (raw.bookStatus as BookStatus)
+    : 'ING';
+
+  return {
+    id: raw.id ?? `${savedAt}-migrated`,
+    bookId: raw.bookId ?? '',
+    bookTitle: raw.bookTitle ?? '',
+    bookAuthor: raw.bookAuthor ?? '',
+    date: raw.date ?? todayStr(),
+    bookStatus,
+    currentPage: normalizeNumber(raw.currentPage),
+    startPage: normalizeNumber(raw.startPage),
+    endPage: normalizeNumber(raw.endPage),
+    readingTimeMin: Math.max(0, readingTimeMin),
+    memo: raw.memo,
+    savedAt,
+  };
+}
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
@@ -50,13 +83,6 @@ function todayStr() {
 function daysAgoStr(n: number) {
   const d = new Date(Date.now() - n * 86400000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function sessionPages(r: ReadingSession): number {
-  if (r.startPage != null && r.endPage != null) {
-    return Math.max(0, r.endPage - r.startPage);
-  }
-  return 0;
 }
 
 export function computeStats(sessions: ReadingSession[]): SessionStats {
@@ -104,7 +130,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
-        const sessions: ReadingSession[] = raw ? JSON.parse(raw) : [];
+        const parsed = raw ? JSON.parse(raw) : [];
+        const sessions = Array.isArray(parsed) ? parsed.map(normalizeSession) : [];
         dispatch({ type: 'LOAD', sessions });
       })
       .catch(() => dispatch({ type: 'LOAD', sessions: [] }));

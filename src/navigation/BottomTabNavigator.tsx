@@ -87,7 +87,11 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 export function BottomTabNavigator() {
   return (
     <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(props) => (
+        props.state.routes[props.state.index].name === 'Home'
+          ? null
+          : <CustomTabBar {...props} />
+      )}
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Home" component={HomeScreen} />

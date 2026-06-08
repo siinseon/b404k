@@ -1,13 +1,14 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { BottomTabNavigator } from './BottomTabNavigator';
+import { NavigatorScreenParams } from '@react-navigation/native';
+import { BottomTabNavigator, RootTabParamList } from './BottomTabNavigator';
 import { BookSearchScreen } from '../screens/BookSearchScreen';
 import { SessionScreen } from '../screens/SessionScreen';
 import { StatsScreen } from '../screens/StatsScreen';
 import { ImportScreen } from '../screens/ImportScreen';
 
 export type RootStackParamList = {
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<RootTabParamList> | undefined;
   BookSearch: undefined;
   Session: { bookId?: string } | undefined;
   Stats: undefined;
