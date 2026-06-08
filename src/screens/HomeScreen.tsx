@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -9,310 +9,102 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Colors, Typography, Spacing, Border, Shadows } from '../constants/theme';
+import { Colors, Typography, Spacing, Border } from '../constants/theme';
 import { RootStackParamList } from '../navigation/RootNavigator';
-import { useSessions } from '../store/sessionStore';
 import { useBooks } from '../store/bookStore';
-import { computeStreak, fmtHM } from '../utils/statsCalculator';
-import { sessionPages } from '../utils/sessionMetrics';
 
 type HomeNav = NativeStackNavigationProp<RootStackParamList, 'MainTabs'>;
 
-const PROG_SEGS = 12;
-const SPEAKER_HOLES = 54;
-const DISC_DOTS = 16;
+const SPEAKER_HOLES = 44;
+const RED_DOTS = 16;
+const LCD_SEGMENTS = 11;
 
-function fmtDate(dateStr?: string | null) {
-  if (!dateStr) return '--.--.--';
-  const [y, m, d] = dateStr.split('-');
-  return `${String(y).slice(2)}.${m ?? '--'}.${d ?? '--'}`;
+function Screw({ style }: { style: object }) {
+  return (
+    <View style={[styles.screw, style]}>
+      <View style={styles.screwSlot} />
+    </View>
+  );
 }
 
-function DeviceButton({
+function RoundButton({
   label,
-  sub,
   onPress,
-  wide = false,
+  style,
 }: {
   label: string;
-  sub?: string;
   onPress: () => void;
-  wide?: boolean;
+  style?: object;
 }) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.75}
-      onPress={onPress}
-      style={[db.outer, wide && db.outerWide]}
-    >
-      <View style={db.face}>
-        <Text style={db.label} numberOfLines={1}>{label}</Text>
-        {sub ? <Text style={db.sub} numberOfLines={1}>{sub}</Text> : null}
+    <TouchableOpacity activeOpacity={0.72} onPress={onPress} style={[styles.roundButton, style]}>
+      <View style={styles.roundButtonFace}>
+        <Text style={styles.roundButtonText}>{label}</Text>
       </View>
     </TouchableOpacity>
   );
 }
 
-const db = StyleSheet.create({
-  outer: {
-    minWidth: 76,
-    borderWidth: Border.regular,
-    borderTopColor: Colors.metalHighlight,
-    borderLeftColor: Colors.metalHighlight,
-    borderBottomColor: Colors.metalShadow,
-    borderRightColor: Colors.metalShadow,
-    borderRadius: 22,
-    backgroundColor: Colors.metalMid,
-  },
-  outerWide: {
-    minWidth: 108,
-  },
-  face: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: 20,
-    backgroundColor: Colors.metalLight,
-  },
-  label: {
-    fontFamily: Typography.fontMono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    color: Colors.text,
-  },
-  sub: {
-    marginTop: 1,
-    fontFamily: Typography.fontMono,
-    fontSize: 7,
-    letterSpacing: 0.8,
-    color: Colors.textMuted,
-  },
-});
-
-function LcdStat({ label, value }: { label: string; value: string }) {
+function SmallDiscButton({
+  label,
+  onPress,
+  style,
+}: {
+  label: string;
+  onPress: () => void;
+  style?: object;
+}) {
   return (
-    <View style={ls.cell}>
-      <Text style={ls.value} numberOfLines={1}>{value}</Text>
-      <Text style={ls.label} numberOfLines={1}>{label}</Text>
-    </View>
+    <TouchableOpacity activeOpacity={0.72} onPress={onPress} style={[styles.smallDiscButton, style]}>
+      <Text style={styles.smallDiscButtonText}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
-const ls = StyleSheet.create({
-  cell: {
-    flex: 1,
-    borderWidth: Border.thin,
-    borderColor: Colors.lcdShadow,
-    backgroundColor: 'rgba(56, 69, 47, 0.06)',
-    paddingVertical: 5,
-    paddingHorizontal: 5,
-    minWidth: 0,
-  },
-  value: {
-    fontFamily: Typography.fontMono,
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.lcdText,
-    lineHeight: 15,
-    textAlign: 'center',
-  },
-  label: {
-    marginTop: 1,
-    fontFamily: Typography.fontMono,
-    fontSize: 7,
-    letterSpacing: 0.8,
-    color: Colors.lcdTextDim,
-    textAlign: 'center',
-  },
-});
-
-function DirectionPad({
-  onAdd,
-  onMonitor,
-  onArchive,
-  onLog,
-  onSession,
+function DPad({
+  onUp,
+  onLeft,
+  onRight,
+  onDown,
+  onEnter,
 }: {
-  onAdd: () => void;
-  onMonitor: () => void;
-  onArchive: () => void;
-  onLog: () => void;
-  onSession: () => void;
+  onUp: () => void;
+  onLeft: () => void;
+  onRight: () => void;
+  onDown: () => void;
+  onEnter: () => void;
 }) {
   return (
-    <View style={dp.outerRing}>
-      <View style={dp.innerRing}>
-        <TouchableOpacity activeOpacity={0.75} onPress={onMonitor} style={[dp.dirBtn, dp.upBtn]}>
-          <Text style={dp.dirIcon}>▲</Text>
-          <Text style={dp.dirLabel}>MON</Text>
+    <View style={styles.dpadOuter}>
+      <View style={styles.dpadBezel}>
+        <TouchableOpacity activeOpacity={0.72} onPress={onUp} style={[styles.dpadZone, styles.dpadUp]}>
+          <Text style={styles.dpadArrow}>▲</Text>
         </TouchableOpacity>
-        <TouchableOpacity activeOpacity={0.75} onPress={onLog} style={[dp.dirBtn, dp.leftBtn]}>
-          <Text style={dp.dirIcon}>◀</Text>
-          <Text style={dp.dirLabel}>LOG</Text>
+        <TouchableOpacity activeOpacity={0.72} onPress={onLeft} style={[styles.dpadZone, styles.dpadLeft]}>
+          <Text style={styles.dpadArrow}>◀</Text>
         </TouchableOpacity>
-        <TouchableOpacity activeOpacity={0.75} onPress={onArchive} style={[dp.dirBtn, dp.rightBtn]}>
-          <Text style={dp.dirIcon}>▶</Text>
-          <Text style={dp.dirLabel}>ARC</Text>
+        <TouchableOpacity activeOpacity={0.72} onPress={onRight} style={[styles.dpadZone, styles.dpadRight]}>
+          <Text style={styles.dpadArrow}>▶</Text>
         </TouchableOpacity>
-        <TouchableOpacity activeOpacity={0.75} onPress={onSession} style={[dp.dirBtn, dp.downBtn]}>
-          <Text style={dp.dirIcon}>▼</Text>
-          <Text style={dp.dirLabel}>REC</Text>
+        <TouchableOpacity activeOpacity={0.72} onPress={onDown} style={[styles.dpadZone, styles.dpadDown]}>
+          <Text style={styles.dpadArrow}>▼</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity activeOpacity={0.72} onPress={onAdd} style={dp.centerBtn}>
-          <Text style={dp.centerIcon}>＋</Text>
-          <Text style={dp.centerLabel}>ADD</Text>
-          <Text style={dp.centerSub}>BOOK</Text>
+        <TouchableOpacity activeOpacity={0.72} onPress={onEnter} style={styles.enterButton}>
+          <View style={styles.enterButtonFace}>
+            <Text style={styles.enterText}>ENTER</Text>
+          </View>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-const dp = StyleSheet.create({
-  outerRing: {
-    width: 214,
-    height: 214,
-    borderRadius: 107,
-    borderWidth: Border.thick,
-    borderTopColor: Colors.metalHighlight,
-    borderLeftColor: Colors.metalHighlight,
-    borderBottomColor: Colors.metalShadow,
-    borderRightColor: Colors.metalShadow,
-    backgroundColor: Colors.metalMid,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-  },
-  innerRing: {
-    width: 188,
-    height: 188,
-    borderRadius: 94,
-    borderWidth: Border.regular,
-    borderTopColor: Colors.metalShadow,
-    borderLeftColor: Colors.metalShadow,
-    borderBottomColor: Colors.metalHighlight,
-    borderRightColor: Colors.metalHighlight,
-    backgroundColor: Colors.metalLight,
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dirBtn: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 58,
-    height: 50,
-  },
-  upBtn: { top: 8, left: 65 },
-  leftBtn: { top: 69, left: 7 },
-  rightBtn: { top: 69, right: 7 },
-  downBtn: { bottom: 8, left: 65 },
-  dirIcon: {
-    fontFamily: Typography.fontMono,
-    fontSize: 16,
-    color: Colors.textMuted,
-    lineHeight: 18,
-  },
-  dirLabel: {
-    fontFamily: Typography.fontMono,
-    fontSize: 7,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: Colors.textMuted,
-  },
-  centerBtn: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    borderWidth: Border.regular,
-    borderTopColor: Colors.metalHighlight,
-    borderLeftColor: Colors.metalHighlight,
-    borderBottomColor: Colors.metalShadow,
-    borderRightColor: Colors.metalShadow,
-    backgroundColor: Colors.panel,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  centerIcon: {
-    fontFamily: Typography.fontMono,
-    fontSize: 20,
-    color: Colors.lcdText,
-    lineHeight: 22,
-  },
-  centerLabel: {
-    fontFamily: Typography.fontMono,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: Colors.text,
-  },
-  centerSub: {
-    fontFamily: Typography.fontMono,
-    fontSize: 7,
-    letterSpacing: 1.2,
-    color: Colors.textMuted,
-  },
-});
-
 export function HomeScreen() {
   const navigation = useNavigation<HomeNav>();
-  const { sessions, stats, loaded: sessionsLoaded } = useSessions();
-  const { books, loaded: booksLoaded } = useBooks();
-  const loaded = sessionsLoaded && booksLoaded;
+  const { books, loaded } = useBooks();
 
-  const activeBooks = useMemo(() => books.filter((b) => b.status === 'ING'), [books]);
-
-  const { currentBook, currentPage, lastLogDate, progressPct, bookId } = useMemo(() => {
-    const pool = activeBooks.length > 0
-      ? activeBooks
-      : [...books].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 1);
-
-    if (pool.length === 0) {
-      return { currentBook: null, currentPage: 0, lastLogDate: null, progressPct: null, bookId: null };
-    }
-
-    const ranked = pool.map((book) => {
-      const bookSessions = sessions.filter((s) => s.bookId === book.id);
-      const latestSession = bookSessions[0] ?? null;
-      return { book, latestSession, bookSessions };
-    }).sort((a, b) => {
-      const aDate = a.latestSession?.savedAt ?? a.book.updatedAt;
-      const bDate = b.latestSession?.savedAt ?? b.book.updatedAt;
-      return bDate - aDate;
-    });
-
-    const { book, latestSession, bookSessions } = ranked[0];
-    const curPage = latestSession?.currentPage
-      ?? bookSessions.reduce((max, s) => Math.max(max, s.endPage ?? 0), 0);
-    const pct = book.totalPages && curPage
-      ? Math.min(100, Math.round((curPage / book.totalPages) * 100))
-      : null;
-
-    return {
-      currentBook: book,
-      currentPage: curPage,
-      lastLogDate: latestSession?.date ?? null,
-      progressPct: pct,
-      bookId: book.id,
-    };
-  }, [activeBooks, books, sessions]);
-
-  const streak = useMemo(() => computeStreak(sessions), [sessions]);
-  const todayPages = stats.todayPages;
-  const totalPages = stats.totalPages;
-  const recentSession = sessions[0] ?? null;
-  const recentPages = recentSession ? sessionPages(recentSession) : 0;
-  const filledSegs = progressPct != null
-    ? Math.round((progressPct / 100) * PROG_SEGS)
-    : 0;
-
-  const goAdd = () => navigation.navigate('BookSearch');
-  const goSession = () => navigation.navigate('Session', bookId ? { bookId } : undefined);
+  const goBookSearch = () => navigation.navigate('BookSearch');
+  const goSession = () => navigation.navigate('Session');
   const goMonitor = () => navigation.navigate('MainTabs', { screen: 'Monitor' });
   const goArchive = () => navigation.navigate('MainTabs', { screen: 'Archive' });
   const goLog = () => navigation.navigate('MainTabs', { screen: 'Log' });
@@ -322,120 +114,107 @@ export function HomeScreen() {
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.device}>
-          <View style={styles.topHardware}>
+          <Screw style={styles.screwTopLeft} />
+          <Screw style={styles.screwTopRight} />
+          <Screw style={styles.screwBottomLeft} />
+          <Screw style={styles.screwBottomRight} />
+
+          <View style={styles.brushedLines}>
+            {Array.from({ length: 18 }).map((_, i) => (
+              <View key={i} style={styles.brushedLine} />
+            ))}
+          </View>
+
+          <View style={styles.header}>
             <Text style={styles.brand}>B404K</Text>
-            <View style={styles.powerBlock}>
+            <View style={styles.power}>
               <Text style={styles.powerText}>POWER</Text>
               <View style={[styles.powerLed, loaded && styles.powerLedOn]} />
             </View>
           </View>
 
-          <View style={styles.speakerGrid}>
+          <View style={styles.speaker}>
             {Array.from({ length: SPEAKER_HOLES }).map((_, i) => (
               <View key={i} style={styles.speakerHole} />
             ))}
           </View>
 
-          <View style={styles.discArea}>
-            <View style={styles.discCircle}>
-              <Text style={styles.discLabel}>Bookman</Text>
-              <Text style={styles.discSub}>PERSONAL READING DEVICE</Text>
-              <View style={styles.discDots}>
-                {Array.from({ length: DISC_DOTS }).map((_, i) => (
-                  <View key={i} style={[styles.discDot, i < Math.min(books.length, DISC_DOTS) && styles.discDotOn]} />
-                ))}
-              </View>
+          <View style={styles.disc}>
+            <Text style={styles.discLogo}>Bookman</Text>
+            <Text style={styles.discMark}>COMPACT{'\n'}DIGITAL BOOK</Text>
+            <View style={styles.redDotGrid}>
+              {Array.from({ length: RED_DOTS }).map((_, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.redDot,
+                    i < Math.min(books.length, RED_DOTS) && styles.redDotOn,
+                  ]}
+                />
+              ))}
             </View>
+          </View>
 
-            <View style={styles.lcdFrame}>
-              <View style={styles.lcdInner}>
-                <View style={styles.lcdTopRow}>
-                  <Text style={styles.lcdTiny}>WELCOME TO</Text>
-                  <Text style={styles.lcdTiny}>MDLP</Text>
+          <View style={styles.lcdFrame}>
+            <View style={styles.lcd}>
+              <Text style={styles.lcdTiny}>WELCOME TO</Text>
+              <Text style={styles.lcdTitle}>B404K</Text>
+              <Text style={styles.lcdSubtitle}>Reading Not Found</Text>
+              <View style={styles.lcdRule} />
+              <Text style={styles.lcdStatus}>INITIALIZING</Text>
+              <Text style={styles.lcdStatus}>READING SYSTEM...</Text>
+              <View style={styles.lcdProgress}>
+                <View style={styles.lcdSegments}>
+                  {Array.from({ length: LCD_SEGMENTS }).map((_, i) => (
+                    <View key={i} style={[styles.lcdSegment, i < 10 && styles.lcdSegmentOn]} />
+                  ))}
                 </View>
-                <Text style={styles.lcdTitle}>BOOK RIG</Text>
-                <Text style={styles.lcdSubtitle}>PERSONAL READING DEVICE</Text>
-                <View style={styles.lcdRule} />
-
-                <Text style={styles.lcdSection}>NOW READING</Text>
-                <Text style={styles.lcdBookTitle} numberOfLines={2}>
-                  {!loaded ? 'INITIALIZING READING SYSTEM...' : currentBook?.title ?? 'INSERT BOOK. PRESS ADD.'}
-                </Text>
-                <Text style={styles.lcdAuthor} numberOfLines={1}>
-                  {!loaded ? 'PLEASE WAIT' : currentBook?.author ?? 'NO ACTIVE BOOK'}
-                </Text>
-
-                <View style={styles.lcdMetaRow}>
-                  <Text style={styles.lcdMeta}>PAGE {currentPage > 0 ? currentPage : '--'}</Text>
-                  <Text style={styles.lcdMeta}>LAST {fmtDate(lastLogDate)}</Text>
-                </View>
-
-                <View style={styles.lcdProgressRow}>
-                  <View style={styles.lcdProgressTrack}>
-                    {Array.from({ length: PROG_SEGS }).map((_, i) => (
-                      <View key={i} style={[styles.lcdSeg, i < filledSegs && styles.lcdSegOn]} />
-                    ))}
-                  </View>
-                  <Text style={styles.lcdPct}>{progressPct != null ? `${progressPct}%` : '---'}</Text>
-                </View>
-
-                <View style={styles.lcdStatsGrid}>
-                  <LcdStat label="TODAY" value={loaded ? String(todayPages) : '--'} />
-                  <LcdStat label="WEEK" value={loaded ? String(stats.weekPages) : '--'} />
-                  <LcdStat label="TOTAL" value={loaded ? String(totalPages) : '--'} />
-                </View>
-                <View style={styles.lcdStatsGrid}>
-                  <LcdStat label="TIME" value={loaded ? fmtHM(stats.totalTimeMin) : '--'} />
-                  <LcdStat label="STREAK" value={loaded ? `${streak}D` : '--'} />
-                  <LcdStat label="BOOKS" value={loaded ? String(books.length) : '--'} />
-                </View>
+                <Text style={styles.lcdPercent}>100%</Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.statusStrip}>
-            <View style={styles.statusItem}>
-              <View style={[styles.statusLed, activeBooks.length > 0 && styles.statusLedGreen]} />
-              <Text style={styles.statusText}>ACTIVE {activeBooks.length}</Text>
-            </View>
-            <View style={styles.statusItem}>
-              <View style={[styles.statusLed, stats.todaySessions > 0 && styles.statusLedRed]} />
-              <Text style={styles.statusText}>REC {stats.todaySessions}</Text>
-            </View>
-            <View style={styles.statusItem}>
-              <View style={[styles.statusLed, sessions.length > 0 && styles.statusLedAmber]} />
-              <Text style={styles.statusText}>LOG {sessions.length}</Text>
-            </View>
+          <View style={styles.sideTransportLabel}>
+            <Text style={styles.sideTransportText}>▸▌▌</Text>
+            <Text style={styles.sideTransportPlus}>＋</Text>
           </View>
+          <Text style={styles.repeatText}>REPEAT</Text>
+          <Text style={styles.holdText}>HOLD</Text>
 
-          <View style={styles.smallButtonsRow}>
-            <DeviceButton label="MENU" sub="STATS" onPress={goStats} />
-            <DeviceButton label="MONITOR" sub="SIGNAL" onPress={goMonitor} wide />
-            <DeviceButton label="BACK" sub="LOG" onPress={goLog} />
-          </View>
+          <SmallDiscButton label="◀◀" onPress={goLog} style={styles.skipBackTop} />
+          <SmallDiscButton label="◀◀" onPress={goMonitor} style={styles.skipBackMid} />
+          <SmallDiscButton label="▶▶" onPress={goArchive} style={styles.skipNextMid} />
+          <SmallDiscButton label="■" onPress={goSession} style={styles.stopButton} />
 
-          <DirectionPad
-            onAdd={goAdd}
-            onMonitor={goMonitor}
-            onArchive={goArchive}
-            onLog={goLog}
-            onSession={goSession}
+          <TouchableOpacity activeOpacity={0.72} onPress={goSession} style={styles.volumeButton}>
+            <View style={styles.volumeFace}>
+              <Text style={styles.volumeText}>＋</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity activeOpacity={0.72} onPress={goArchive} style={styles.holdSwitch}>
+            <View style={styles.holdKnob} />
+          </TouchableOpacity>
+
+          <RoundButton label="MENU" onPress={goStats} style={styles.menuButton} />
+          <RoundButton label="BACK" onPress={goLog} style={styles.backButton} />
+
+          <DPad
+            onUp={goMonitor}
+            onLeft={goLog}
+            onRight={goArchive}
+            onDown={goSession}
+            onEnter={goBookSearch}
           />
 
-          <View style={styles.transportRow}>
-            <DeviceButton label="LOG" sub={recentSession ? `${recentPages}PP` : 'EMPTY'} onPress={goLog} />
-            <DeviceButton label="SESSION" sub="REC" onPress={goSession} wide />
-            <DeviceButton label="ARCHIVE" sub={`${books.length} FILES`} onPress={goArchive} />
-          </View>
-
-          <View style={styles.footerPlate}>
-            <Text style={styles.footerText}>COMPACT BOOK RIG</Text>
-            <Text style={styles.footerText}>v1.0  NET-RD</Text>
-          </View>
+          <Text style={styles.leftBottomLabel}>MDLP</Text>
+          <Text style={styles.rightBottomLabel}>NetMD</Text>
+          <Text style={styles.footerBrand}>B404K</Text>
+          <Text style={styles.footerVersion}>v1.0</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -445,317 +224,546 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#10100F',
+    backgroundColor: '#050505',
   },
   scroll: {
     flex: 1,
   },
-  content: {
+  scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
   },
   device: {
-    flex: 1,
-    minHeight: 760,
+    width: '100%',
+    maxWidth: 392,
+    minHeight: 846,
+    borderRadius: 11,
     borderWidth: Border.regular,
-    borderTopColor: Colors.metalHighlight,
-    borderLeftColor: Colors.metalHighlight,
-    borderBottomColor: Colors.metalShadow,
-    borderRightColor: Colors.metalShadow,
-    borderRadius: 18,
-    backgroundColor: Colors.body,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
-    gap: Spacing.md,
-    shadowColor: '#000',
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#EFEFEA',
+    borderRightColor: '#777772',
+    borderBottomColor: '#555551',
+    backgroundColor: '#D4D2CA',
+    overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 10,
+    shadowOpacity: 0.55,
+    shadowRadius: 16,
+    elevation: 12,
   },
-  topHardware: {
+  brushedLines: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    opacity: 0.22,
+  },
+  brushedLine: {
+    height: 1,
+    marginTop: 42,
+    marginHorizontal: 22,
+    backgroundColor: '#FFFFFF',
+  },
+  screw: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderTopColor: '#5B5B57',
+    borderLeftColor: '#6A6A66',
+    borderRightColor: '#F8F8F4',
+    borderBottomColor: '#FFFFFF',
+    backgroundColor: '#B8B7B0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
+  screwSlot: {
+    width: 10,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: '#4A4A47',
+    transform: [{ rotate: '35deg' }],
+  },
+  screwTopLeft: { top: 10, left: 10 },
+  screwTopRight: { top: 10, right: 10 },
+  screwBottomLeft: { bottom: 10, left: 10 },
+  screwBottomRight: { bottom: 10, right: 10 },
+  header: {
+    position: 'absolute',
+    top: 25,
+    left: 30,
+    right: 32,
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    zIndex: 4,
   },
   brand: {
     fontFamily: Typography.fontMono,
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '700',
-    letterSpacing: 3,
-    color: Colors.text,
+    letterSpacing: 2,
+    color: '#2B2B2A',
   },
-  powerBlock: {
+  power: {
     alignItems: 'center',
     gap: 4,
   },
   powerText: {
     fontFamily: Typography.fontMono,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '700',
-    color: Colors.text,
+    color: '#111111',
   },
   powerLed: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: Border.thin,
-    borderColor: Colors.metalShadow,
-    backgroundColor: Colors.metalDark,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#222222',
+    backgroundColor: '#7EA64F',
   },
   powerLedOn: {
-    backgroundColor: Colors.accentGreen,
+    backgroundColor: '#8DFF57',
   },
-  speakerGrid: {
-    width: 185,
+  speaker: {
+    position: 'absolute',
+    top: 108,
+    left: 42,
+    width: 170,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 7,
-    marginLeft: Spacing.xs,
-    marginTop: -2,
+    gap: 8,
+    zIndex: 5,
   },
   speakerHole: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#202020',
+    backgroundColor: '#141414',
   },
-  discArea: {
-    minHeight: 336,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  discCircle: {
+  disc: {
     position: 'absolute',
-    left: -84,
-    top: 12,
-    width: 330,
-    height: 330,
-    borderRadius: 165,
-    backgroundColor: '#1E1E1D',
+    left: -112,
+    top: 182,
+    width: 440,
+    height: 440,
+    borderRadius: 220,
     borderWidth: Border.regular,
-    borderTopColor: '#565653',
-    borderLeftColor: '#565653',
-    borderBottomColor: Colors.metalHighlight,
-    borderRightColor: Colors.metalHighlight,
-    paddingTop: 74,
-    paddingLeft: 108,
+    borderTopColor: '#4B4B49',
+    borderLeftColor: '#3A3A38',
+    borderRightColor: '#E9E9E4',
+    borderBottomColor: '#F8F8F4',
+    backgroundColor: '#222220',
+    zIndex: 1,
   },
-  discLabel: {
+  discLogo: {
+    position: 'absolute',
+    top: 92,
+    left: 146,
     fontFamily: Typography.fontMono,
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    letterSpacing: -1,
-    color: '#DADAD4',
+    letterSpacing: -2,
+    color: '#D9D9D2',
   },
-  discSub: {
-    marginTop: 2,
+  discMark: {
+    position: 'absolute',
+    left: 148,
+    bottom: 76,
     fontFamily: Typography.fontMono,
-    fontSize: 7,
-    letterSpacing: 1,
-    color: '#B8B8B0',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    color: '#E2E2DC',
+    lineHeight: 10,
   },
-  discDots: {
-    width: 58,
+  redDotGrid: {
+    position: 'absolute',
+    left: 146,
+    bottom: 36,
+    width: 44,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
-    marginTop: 24,
+    gap: 3,
   },
-  discDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 1,
-    backgroundColor: '#380B0B',
+  redDot: {
+    width: 7,
+    height: 7,
+    backgroundColor: '#3A0505',
   },
-  discDotOn: {
-    backgroundColor: '#D71919',
+  redDotOn: {
+    backgroundColor: '#D71010',
   },
   lcdFrame: {
-    width: '72%',
-    minHeight: 270,
-    alignSelf: 'flex-start',
-    marginLeft: Spacing.lg,
-    borderWidth: Border.thick,
-    borderTopColor: '#1B1B1A',
-    borderLeftColor: '#1B1B1A',
-    borderBottomColor: Colors.metalHighlight,
-    borderRightColor: Colors.metalHighlight,
-    borderRadius: 14,
+    position: 'absolute',
+    top: 298,
+    left: 35,
+    width: 198,
+    height: 216,
+    borderRadius: 12,
+    borderWidth: 5,
+    borderTopColor: '#151515',
+    borderLeftColor: '#151515',
+    borderRightColor: '#444441',
+    borderBottomColor: '#555550',
+    backgroundColor: '#232321',
     padding: 7,
-    backgroundColor: '#262625',
+    zIndex: 6,
   },
-  lcdInner: {
+  lcd: {
     flex: 1,
+    borderRadius: 5,
     borderWidth: Border.regular,
-    borderTopColor: Colors.lcdShadow,
-    borderLeftColor: Colors.lcdShadow,
-    borderBottomColor: Colors.lcdHighlight,
-    borderRightColor: Colors.lcdHighlight,
-    borderRadius: 4,
+    borderTopColor: '#7C886E',
+    borderLeftColor: '#7C886E',
+    borderRightColor: '#D7E5BE',
+    borderBottomColor: '#D7E5BE',
     backgroundColor: Colors.lcdBackground,
-    padding: Spacing.md,
-    gap: 5,
-  },
-  lcdTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingHorizontal: 13,
+    paddingTop: 14,
   },
   lcdTiny: {
     fontFamily: Typography.fontMono,
-    fontSize: 8,
-    letterSpacing: 1,
-    color: Colors.lcdTextDim,
+    fontSize: 11,
+    letterSpacing: 0.5,
+    color: Colors.lcdText,
   },
   lcdTitle: {
+    marginTop: 2,
     fontFamily: Typography.fontMono,
     fontSize: 27,
     fontWeight: '700',
     letterSpacing: 1,
+    lineHeight: 31,
     color: Colors.lcdText,
-    lineHeight: 30,
   },
   lcdSubtitle: {
+    marginTop: 1,
     fontFamily: Typography.fontMono,
-    fontSize: 9,
-    letterSpacing: 1,
+    fontSize: 11,
+    letterSpacing: 0.2,
     color: Colors.lcdText,
   },
   lcdRule: {
     height: 1,
     backgroundColor: Colors.lcdTextDim,
-    opacity: 0.6,
-    marginVertical: 4,
+    marginTop: 14,
+    marginBottom: 15,
+    opacity: 0.62,
   },
-  lcdSection: {
+  lcdStatus: {
     fontFamily: Typography.fontMono,
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    color: Colors.lcdTextDim,
-  },
-  lcdBookTitle: {
-    fontFamily: Typography.fontMono,
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    fontSize: 10,
+    letterSpacing: 0.5,
     color: Colors.lcdText,
-    lineHeight: 17,
+    lineHeight: 13,
   },
-  lcdAuthor: {
-    fontFamily: Typography.fontMono,
-    fontSize: 9,
-    color: Colors.lcdTextDim,
-  },
-  lcdMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: Spacing.sm,
-  },
-  lcdMeta: {
-    fontFamily: Typography.fontMono,
-    fontSize: 8,
-    letterSpacing: 0.7,
-    color: Colors.lcdTextDim,
-  },
-  lcdProgressRow: {
+  lcdProgress: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    marginTop: 2,
+    marginTop: 13,
+    gap: 10,
   },
-  lcdProgressTrack: {
+  lcdSegments: {
     flex: 1,
     flexDirection: 'row',
     gap: 2,
   },
-  lcdSeg: {
+  lcdSegment: {
     flex: 1,
-    height: 10,
-    backgroundColor: Colors.lcdShadow,
-    opacity: 0.45,
+    height: 11,
+    borderWidth: 1,
+    borderColor: Colors.lcdTextDim,
+    backgroundColor: 'transparent',
   },
-  lcdSegOn: {
+  lcdSegmentOn: {
     backgroundColor: Colors.lcdText,
-    opacity: 1,
   },
-  lcdPct: {
-    width: 36,
+  lcdPercent: {
     fontFamily: Typography.fontMono,
     fontSize: 10,
-    fontWeight: '700',
-    textAlign: 'right',
     color: Colors.lcdText,
   },
-  lcdStatsGrid: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  statusStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderWidth: Border.regular,
-    ...Shadows.inset,
-    borderRadius: 3,
-    backgroundColor: Colors.panel,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  statusItem: {
+  sideTransportLabel: {
+    position: 'absolute',
+    top: 238,
+    right: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 8,
+    zIndex: 6,
   },
-  statusLed: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: Colors.metalShadow,
-    backgroundColor: Colors.metalDark,
+  sideTransportText: {
+    fontFamily: Typography.fontMono,
+    fontSize: 11,
+    color: '#111111',
   },
-  statusLedGreen: {
-    backgroundColor: Colors.accentGreen,
+  sideTransportPlus: {
+    fontFamily: Typography.fontMono,
+    fontSize: 17,
+    color: '#111111',
   },
-  statusLedRed: {
-    backgroundColor: Colors.statusError,
-  },
-  statusLedAmber: {
-    backgroundColor: Colors.statusWarning,
-  },
-  statusText: {
+  repeatText: {
+    position: 'absolute',
+    top: 289,
+    right: 25,
     fontFamily: Typography.fontMono,
     fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: Colors.textMuted,
+    color: '#111111',
+    zIndex: 6,
   },
-  smallButtonsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  transportRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  footerPlate: {
-    marginTop: 'auto',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  footerText: {
+  holdText: {
+    position: 'absolute',
+    top: 494,
+    right: 42,
     fontFamily: Typography.fontMono,
     fontSize: 10,
+    color: '#F0F0EA',
+    zIndex: 6,
+  },
+  smallDiscButton: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: Border.regular,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#F5F5F0',
+    borderRightColor: '#6F6F6A',
+    borderBottomColor: '#565652',
+    backgroundColor: '#D7D7D1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 8,
+  },
+  smallDiscButtonText: {
+    fontFamily: Typography.fontMono,
+    fontSize: 17,
     fontWeight: '700',
-    letterSpacing: 0.5,
-    color: Colors.text,
+    color: '#222222',
+  },
+  skipBackTop: { top: 284, right: 78 },
+  skipBackMid: { top: 359, right: 110 },
+  skipNextMid: { top: 359, right: 48 },
+  stopButton: { top: 431, right: 78 },
+  volumeButton: {
+    position: 'absolute',
+    top: 242,
+    right: 19,
+    width: 34,
+    height: 60,
+    borderRadius: 18,
+    borderWidth: Border.regular,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#F5F5F0',
+    borderRightColor: '#60605C',
+    borderBottomColor: '#50504C',
+    backgroundColor: '#30302F',
+    padding: 3,
+    zIndex: 9,
+    transform: [{ rotate: '-33deg' }],
+  },
+  volumeFace: {
+    flex: 1,
+    borderRadius: 16,
+    backgroundColor: '#D5D5CF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  volumeText: {
+    fontFamily: Typography.fontMono,
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#222222',
+  },
+  holdSwitch: {
+    position: 'absolute',
+    top: 520,
+    right: 37,
+    width: 32,
+    height: 68,
+    borderRadius: 18,
+    borderWidth: Border.regular,
+    borderTopColor: '#090909',
+    borderLeftColor: '#090909',
+    borderRightColor: '#5A5A57',
+    borderBottomColor: '#686864',
+    backgroundColor: '#111111',
+    padding: 4,
+    zIndex: 8,
+    transform: [{ rotate: '28deg' }],
+  },
+  holdKnob: {
+    width: 22,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: '#333331',
+    borderWidth: 1,
+    borderTopColor: '#5B5B57',
+    borderLeftColor: '#4A4A47',
+    borderRightColor: '#111111',
+    borderBottomColor: '#000000',
+  },
+  roundButton: {
+    position: 'absolute',
+    width: 68,
+    height: 58,
+    borderRadius: 28,
+    borderWidth: Border.regular,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#F5F5F0',
+    borderRightColor: '#696965',
+    borderBottomColor: '#555551',
+    backgroundColor: '#BEBDB7',
+    padding: 3,
+    zIndex: 9,
+  },
+  roundButtonFace: {
+    flex: 1,
+    borderRadius: 25,
+    backgroundColor: '#D8D7D1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roundButtonText: {
+    fontFamily: Typography.fontMono,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#222222',
+  },
+  menuButton: {
+    top: 591,
+    left: 30,
+  },
+  backButton: {
+    top: 591,
+    right: 30,
+  },
+  dpadOuter: {
+    position: 'absolute',
+    top: 586,
+    left: '50%',
+    marginLeft: -92,
+    width: 184,
+    height: 184,
+    borderRadius: 92,
+    borderWidth: 3,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#F2F2EC',
+    borderRightColor: '#676762',
+    borderBottomColor: '#555550',
+    backgroundColor: '#BBBAB4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 8,
+  },
+  dpadBezel: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    borderWidth: Border.regular,
+    borderTopColor: '#656560',
+    borderLeftColor: '#777771',
+    borderRightColor: '#FFFFFF',
+    borderBottomColor: '#FFFFFF',
+    backgroundColor: '#D1D0C9',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dpadZone: {
+    position: 'absolute',
+    width: 62,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dpadUp: { top: 8, left: 49 },
+  dpadLeft: { top: 57, left: 8 },
+  dpadRight: { top: 57, right: 8 },
+  dpadDown: { bottom: 8, left: 49 },
+  dpadArrow: {
+    fontFamily: Typography.fontMono,
+    fontSize: 18,
+    color: '#5A5A55',
+  },
+  enterButton: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    borderWidth: Border.regular,
+    borderTopColor: '#5C5C58',
+    borderLeftColor: '#6B6B66',
+    borderRightColor: '#FFFFFF',
+    borderBottomColor: '#FFFFFF',
+    backgroundColor: '#AFAEA8',
+    padding: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  enterButtonFace: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 35,
+    borderWidth: Border.thin,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#F5F5F0',
+    borderRightColor: '#777772',
+    borderBottomColor: '#666661',
+    backgroundColor: '#D4D3CD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  enterText: {
+    fontFamily: Typography.fontMono,
+    fontSize: 12,
+    color: '#222222',
+  },
+  leftBottomLabel: {
+    position: 'absolute',
+    left: 43,
+    bottom: 71,
+    fontFamily: Typography.fontMono,
+    fontSize: 16,
+    color: '#222222',
     textDecorationLine: 'underline',
+    zIndex: 5,
+  },
+  rightBottomLabel: {
+    position: 'absolute',
+    right: 43,
+    bottom: 71,
+    fontFamily: Typography.fontMono,
+    fontSize: 16,
+    color: '#222222',
+    textDecorationLine: 'underline',
+    zIndex: 5,
+  },
+  footerBrand: {
+    position: 'absolute',
+    right: 34,
+    bottom: 32,
+    fontFamily: Typography.fontMono,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: '#222222',
+    zIndex: 5,
+  },
+  footerVersion: {
+    position: 'absolute',
+    right: 34,
+    bottom: 17,
+    fontFamily: Typography.fontMono,
+    fontSize: 8,
+    color: '#333333',
+    zIndex: 5,
   },
 });
